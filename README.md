@@ -1,71 +1,67 @@
-# Cw721 Basic
+# Customized NFT
 
-This is a basic implementation of a cw721 NFT contract. It implements
-the [CW721 spec](../../packages/cw721/README.md) and is designed to
-be deployed as is, or imported into other contracts to easily build
-cw721-compatible NFTs with custom logic.
+A CosmWasm NFT contract based on `cw721-base`, extended with collection details and richer token metadata for an NFT marketplace.
 
-Implements:
+It implements the full CW721 standard, so transfers, approvals and queries work with any wallet or marketplace that understands cw721. On top of that it adds:
 
-- [x] CW721 Base
-- [x] Metadata extension
-- [ ] Enumerable extension (AllTokens done, but not Tokens - requires [#81](https://github.com/CosmWasm/cw-plus/issues/81))
+- Collection info set at instantiation: a collection name, description, logo URL and banner URL, plus the address that created it. Read it back with the `collection_info {}` query.
+- Token metadata with a name, description, external link, royalty recipients and rates, an initial price and supply counts (`num_nfts` and `num_real_repr`).
+- A `burn { token_id }` message for the owner or an approved operator.
 
-## Implementation
+## Messages
 
-The `ExecuteMsg` and `QueryMsg` implementations follow the [CW721 spec](../../packages/cw721/README.md) and are described there.
-Beyond that, we make a few additions:
+Instantiate:
 
-* `InstantiateMsg` takes name and symbol (for metadata), as well as a **Minter** address. This is a special address that has full 
-power to mint new NFTs (but not modify existing ones)
-* `ExecuteMsg::Mint{token_id, owner, token_uri}` - creates a new token with given owner and (optional) metadata. It can only be called by
-the Minter set in `instantiate`.
-* `QueryMsg::Minter{}` - returns the minter address for this contract.
-
-It requires all tokens to have defined metadata in the standard format (with no extensions). For generic NFTs this may
-often be enough.
-
-The *Minter* can either be an external actor (eg. web server, using PubKey) or another contract. If you just want to customize
-the minting behavior but not other functionality, you could extend this contract (importing code and wiring it together)
-or just create a custom contract as the owner and use that contract to Mint.
-
-If provided, it is expected that the _token_uri_ points to a JSON file following the [ERC721 Metadata JSON Schema](https://eips.ethereum.org/EIPS/eip-721).
-
-## Running this contract
-
-You will need Rust 1.44.1+ with `wasm32-unknown-unknown` target installed.
-
-You can run unit tests on this via: 
-
-`cargo test`
-
-Once you are happy with the content, you can compile it to wasm via:
-
-```
-RUSTFLAGS='-C link-arg=-s' cargo wasm
-cp ../../target/wasm32-unknown-unknown/release/cw721_base.wasm .
-ls -l cw721_base.wasm
-sha256sum cw721_base.wasm
+```json
+{
+  "name": "My Collection",
+  "symbol": "MYC",
+  "minter": "juno1...",
+  "collection_name": "My Collection",
+  "collection_description": "A short description",
+  "logo_url": "https://...",
+  "banner_url": "https://..."
+}
 ```
 
-Or for a production-ready (optimized) build, run a build command in the
-the repository root: https://github.com/CosmWasm/cw-plus#compiling.
+Mint (minter only):
 
-## Importing this contract
+```json
+{
+  "mint": {
+    "token_id": "1",
+    "owner": "juno1...",
+    "token_uri": "https://.../1.json",
+    "extension": {
+      "name": "First piece",
+      "description": "...",
+      "royalties": [{ "address": "juno1...", "royalty_rate": "0.05" }],
+      "init_price": "1000000"
+    }
+  }
+}
+```
 
-You can also import much of the logic of this contract to build another
-CW721-compliant contract, such as tradable names, crypto kitties,
-or tokenized real estate.
+Everything else follows the CW721 spec in `packages/cw721`: `transfer_nft`, `send_nft`, `approve`, `revoke`, `approve_all`, `revoke_all`, and queries like `owner_of`, `nft_info`, `all_nft_info`, `tokens` and `all_tokens`. The full JSON schemas are in `schema/`.
 
-Basically, you just need to write your handle function and import 
-`cw721_base::contract::handle_transfer`, etc and dispatch to them.
-This allows you to use custom `ExecuteMsg` and `QueryMsg` with your additional
-calls, but then use the underlying implementation for the standard cw721
-messages you want to support. The same with `QueryMsg`. You will most
-likely want to write a custom, domain-specific `instantiate`.
+## Not finished yet
 
-**TODO: add example when written**
+- `mint_number_limit` is accepted at instantiation but isn't stored or enforced, so there's no supply cap yet.
+- `update_minter` checks that the caller is the current minter, but the line that saves the new minter is commented out, so the minter doesn't actually change.
 
-For now, you can look at [`cw721-staking`](../cw721-staking/README.md)
-for an example of how to "inherit" cw721 functionality and combine it with custom logic.
-The process is similar for cw721.
+## Building
+
+You'll need Rust with the `wasm32-unknown-unknown` target.
+
+```bash
+git clone https://github.com/AI-pro017/customized-nft.git
+cd customized-nft
+cargo test
+cargo wasm
+```
+
+Run `cargo schema` to regenerate the JSON schemas after changing the messages.
+
+## Credits
+
+Based on `cw721-base` from [cw-nfts](https://github.com/CosmWasm/cw-nfts) by Ethan Frey and Orkun Külçe. Apache 2.0, see [NOTICE](NOTICE).
